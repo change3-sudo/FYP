@@ -1,0 +1,88 @@
+
+
+
+<AddObject
+addObject={handleObjectAdd}
+updateObject={updateObjects}
+isVisible={isButtonsVisible}
+selectedObject={selectedObject && objects.find(obj => obj.id === selectedObject)}
+/> 
+const updateObjects = useCallback((id, update) => {
+    setObjects(prevObjects => prevObjects.map(obj => {
+      if (obj.id === id) {
+        // For transform updates coming from Buttons.jsx
+        if (update.type === 'color') {
+          return {
+            ...obj,
+            color: update.value
+          };
+        }
+        if (update.type) {
+          return {
+            ...obj,
+            [update.type]: update.value
+          };
+        }
+        // For position updates coming from DragHandler
+        return {
+          ...obj,
+          position: update
+        };
+      }
+      return obj;
+    }));
+  }, []);
+  const toggleButtonsVisibility = () => {
+    setIsButtonsVisible(prev => !prev);
+    console.log("Is Buttons Visible:", isButtonsVisible);
+  };
+  const [isButtonsVisible, setIsButtonsVisible] = useState(false);
+  const [selectedLight, setSelectedLight] = useState(null);
+const handleObjectAdd = (geometry, color, worldSpace) => {
+    const newObject = {
+      id: Math.random(),
+      type: geometry,
+      color: color,
+      position: [
+        //0,3,0
+        Math.random() * 10 - 5, // Random X from -5 to 5
+        Math.random() * 10 + 5, // Random Y from -5 to 5
+        Math.random() * 10 - 5 // Random Z from -5 to 5
+        ],
+      rotation: worldSpace.rotation ? [worldSpace.rotation.x, worldSpace.rotation.y, worldSpace.rotation.z] : [0, 0, 0],
+      scale: worldSpace.scale ? [worldSpace.scale.x, worldSpace.scale.y, worldSpace.scale.z] : [1, 1, 1] 
+    };
+    setObjects(prevObjects => [...prevObjects, newObject]);
+  };
+
+const [isButtonsVisible, setIsButtonsVisible] = useState(false);
+const toggleButtonsVisibility = () => {
+  setIsButtonsVisible(prev => !prev);
+  console.log("Is Buttons Visible:", isButtonsVisible);
+};
+  // ... other states
+  const updateObjects = useCallback((id, update) => {
+    setObjects(prevObjects => prevObjects.map(obj => {
+      if (obj.id === id) {
+        // For transform updates coming from Buttons.jsx
+        if (update.type === 'color') {
+          return {
+            ...obj,
+            color: update.value
+          };
+        }
+        if (update.type) {
+          return {
+            ...obj,
+            [update.type]: update.value
+          };
+        }
+        // For position updates coming from DragHandler
+        return {
+          ...obj,
+          position: update
+        };
+      }
+      return obj;
+    }));
+  }, []);
