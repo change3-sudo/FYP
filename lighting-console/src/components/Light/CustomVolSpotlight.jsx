@@ -100,7 +100,7 @@ const CustomVolSpotlight = React.forwardRef(function MyVolSpotlight(props, ref) 
     const radius = Math.tan(angle / 2) * distance;
     const height = distance;
 
-    custom.current.geometry = new THREE.ConeGeometry(radius, height, 64, 30, 40, true);
+    custom.current.geometry = new THREE.ConeGeometry(radius * 1.5, height, 64, 30, 40, true);
     custom.current.geometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0, -height / 2, 0));
     custom.current.geometry.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
 

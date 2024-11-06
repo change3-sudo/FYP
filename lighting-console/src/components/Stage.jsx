@@ -154,16 +154,22 @@ const handleLightAdd = (intensity, color) => {
   // Log the new light position for debugging
   console.log("New light position is:", newLight.position);
   console.log("Focus point is:", newLight.focusPoint);
+  console.log("ID is:", newLight.id);
+
 };
+
 const [selectedLight, setSelectedLight] = useState(null);
 const handleSelectLight = (lightData) => {
-  console.log("Light selected:", lightData);
+  
   setSelectedLight(lightData);
 };
     const [renderer, setRenderer] = useState(null);
     const [isLightControlVisible, setIsLightControlVisible] = useState(false);
   const [lights, setLights] = useState([]);
   const [selectedLightId, setSelectedLightId] = useState(null);
+  useEffect(() => {
+    console.log("Updated selectedLightId:", selectedLightId);
+  }, [selectedLightId]);
   const [modelUrl, setModelUrl] = useState('/stage.gltf');
   useEffect(() => {
     // Preload the model
@@ -252,7 +258,6 @@ const handleSelectLight = (lightData) => {
           isVisible={isButtonsVisible}
           selectedObject={selectedObject && objects.find(obj => obj.id === selectedObject)}
         />    
-        <GeometryManager onObjectAdd={handleObjectAdd} />
         <AddLight
         isVisible={isLightControlVisible}
         onLightAdd={handleLightAdd}
@@ -300,19 +305,20 @@ const handleSelectLight = (lightData) => {
               <ambientLight intensity={0.5} />
               <ObjectSelector selectedObject={selectedObject} setSelectedObject={setSelectedObject} setEnableOrbit={setEnableOrbit} />
               <LightSelector
-  onSelectLight={(lightData) => handleSelectLight(lightData)}
+onSelectLight={handleSelectLight}
   // 或者直接寫成
   // onSelectLight={handleSelectLight}
   onUpdateLight={handleUpdateLight}
   setEnableOrbit={setEnableOrbit}
-  selectedLight={selectedLight}  // 注意這裡傳入 selectedLight 而不是 selectedLightId
+  selectedLightid={selectedLightId}
+  selectedLight={selectedLight}  
+  setselectedLightid={setSelectedLightId}// 注意這裡傳入 selectedLight 而不是 selectedLightId
 />
                 {/* Lights group */}
                 <group>
   {objects.map((item) => {
     switch(item.type) {
       case 'spotLight':
-        console.log("Mapping item:", item);
         return (
           <LightRenderer
           key={`light-${item.id}`}

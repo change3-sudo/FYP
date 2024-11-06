@@ -12,7 +12,7 @@ const Spot = forwardRef(({ color, position, focusPoint, intensity, id, ...props 
   const { scene } = useThree();
 
   // Load the GLTF model
-  const gltf = useLoader(GLTFLoader, './light.gltf');
+  const gltf = useLoader(GLTFLoader, './fixture.gltf');
   const staticTarget = useMemo(() => {
     const target = new Object3D();
     target.position.set(...focusPoint);
@@ -57,7 +57,7 @@ const Spot = forwardRef(({ color, position, focusPoint, intensity, id, ...props 
         ref={lightRef}
         color={color}
         target={staticTarget}
-        angle={0.20}
+        angle={0.25}
         penumbra={0.8}
         distance={6}
         intensity={intensity}

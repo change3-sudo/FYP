@@ -1,25 +1,24 @@
 import { useThree } from '@react-three/fiber';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect , useState} from 'react';
 
-function LightSelector({ onSelectLight, setEnableOrbit, selectedLight }) {
+function LightSelector({ onSelectLight, setSelectedLightid, setEnableOrbit, selectedLight, selectedLightid }) {
   const { raycaster, scene, camera, pointer, gl } = useThree();
-
-  const handleClick = useCallback((event) => {
-    raycaster.setFromCamera(pointer, camera);
-    const intersects = raycaster.intersectObjects(scene.children, true);
-
-    if (intersects.length > 0) {
-      const hitObject = intersects[0].object;
-      if (hitObject.type === 'Mesh' && hitObject.parent?.children.some(child => child.isSpotLight)) {
-        const lightGroup = hitObject.parent;
-        const spotLight = lightGroup.children.find(child => child.isSpotLight);
-        const actualIntensity = spotLight.intensity;
-        const displayIntensity = actualIntensity / 31.8;
-console.log("spotlight data", spotLight.userData.id)
-
-        // Only deselect if clicking the same light
-        if (selectedLight ) {
-          console.log("selectedLightid",selectedLight.id)
+  const [lastSelectedLightId, setLastSelectedLightId] = useState(null);
+const handleClick = useCallback((event) => {
+  raycaster.setFromCamera(pointer, camera);
+  const intersects = raycaster.intersectObjects(scene.children, true);
+  if (intersects.length > 0) {
+    const hitObject = intersects[0].object;
+    if (hitObject.type === 'Mesh' && hitObject.parent?.children.some(child => child.isSpotLight)) {
+      const lightGroup = hitObject.parent;
+      const spotLight = lightGroup.children.find(child => child.isSpotLight);
+      const hitObjectId = hitObject.userData.id;
+      const actualIntensity = spotLight.intensity;
+      const displayIntensity = actualIntensity / 31.8;
+      // Use hitObject's userData.id for selection logic
+      if (selectedLightid) {
+        // Select the new light
+        if (lastSelectedLightId === hitObjectId) {
           console.log('Light deselected');
           onSelectLight({
             id: null,
@@ -30,22 +29,24 @@ console.log("spotlight data", spotLight.userData.id)
             target: [0, 0, 0]
           });
           setEnableOrbit(true);
-        } else {
-          // Select the new light regardless of whether another light was previously selected
-          console.log('Light selected', spotLight.userData.id);
-          onSelectLight({
-            id: spotLight.userData.id,
-            position: lightGroup.position.toArray(),
-            intensity: displayIntensity,
-            actualIntensity: actualIntensity,
-            color: '#' + spotLight.color.getHexString(),
-            target: spotLight.target.position.toArray()
-          });
-          setEnableOrbit(false);
-        }
+          setLastSelectedLightId(null);}else{
+        console.log('Light selected', hitObject.userData.id);
+        onSelectLight({
+          id: hitObject.userData.id,
+          position: lightGroup.position.toArray(),
+          intensity: displayIntensity,
+          actualIntensity: actualIntensity,
+          color: '#' + spotLight.color.getHexString(),
+          target: spotLight.target.position.toArray()
+        });
+        setEnableOrbit(false);
+        setLastSelectedLightId(hitObjectId);
       }
-      
-    } 
+
+      }
+    
+    }
+  }
   }, [raycaster, scene, camera, pointer, onSelectLight, setEnableOrbit, selectedLight]);
 
   useEffect(() => {
