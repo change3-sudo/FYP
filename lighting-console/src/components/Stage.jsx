@@ -1,107 +1,171 @@
+import React, { useRef, useEffect, useState, useCallback, Suspense } from 'react';
+import { Canvas, useLoader } from '@react-three/fiber';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import WebGPURenderer from 'three/src/renderers/webgpu/WebGPURenderer.js';
+import './styles.css';
 
-import { Vector3, Vector2, Raycaster } from 'three'
-import React, { useRef, useEffect, useState,useCallback, Suspense, useMemo } from 'react'
-import { Canvas, useFrame, useThree, extend } from '@react-three/fiber'
-import { useGLTF, SpotLight, useDepthBuffer, Plane,Box,Sphere, Cone, Torus,  OrbitControls, PerspectiveCamera, TransformControls  } from '@react-three/drei'
-import './styles.css'
-import * as THREE from 'three'
+// Three.js imports
+import { Vector3, Vector2, Raycaster } from 'three';
+import * as THREE from 'three';
+
+// Local component imports
 import AddObject from './Object/AddObject';
 import EditBar from './EditBar';
-import { useLoader } from '@react-three/fiber'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
-import ObjectSelector  from './Object/ObjectSelector'
-import CameraController from './CameraController'
-import GeometryRenderer from './Object/GeometryRenderer'
-import ModelLoader from './ModelLoader'
-import GeometryManager from './Object/GeometryManager'
-import Scene from './Scene'
-import AddLight from './Light/AddLight'
-import LightManager from './Light/LightManager'
-import LightRenderer from './Light/LightRenderer'
-import WebGPURenderer from 'three/src/renderers/webgpu/WebGPURenderer.js'
-import LightSelector from './Light/LightSelector'
-import ModelLoaderComponent from './ModelLoaderComponent'; // The component that loads the model
-import DragHandler from './DragHandler'
+import ObjectSelector from './Object/ObjectSelector';
+import CameraController from './CameraController';
+import GeometryRenderer from './Object/GeometryRenderer';
+import ModelLoader from './ModelLoader';
+import Scene from './Scene';
+import AddLight from './Light/AddLight';
+import LightRenderer from './Light/LightRenderer';
+import LightSelector from './Light/LightSelector';
+import DragHandler from './DragHandler';
+
+// Utility function for initializing WebGPU
 async function initializeWebGPU(canvas) {
   if (!navigator.gpu) {
-      console.error("WebGPU is not supported by your browser.");
-      return;
+    console.error("WebGPU is not supported by your browser.");
+    return;
   }
 
   const adapter = await navigator.gpu.requestAdapter();
   const device = await adapter.requestDevice();
-  
-  // Continue with setting up WebGPU for the canvas...
+  // Additional WebGPU setup can be done here...
 }
+
+// PreloadedModel component
 function PreloadedModel({ url }) {
   const gltf = useLoader(GLTFLoader, url);
   return <primitive object={gltf.scene} scale={0.75} />;
 }
+
+// Main Stage component
 export default function Stage() {
-//   // In your Parent Component
-// const stagef = () => {
-//   const stagef = useGLTF("./stage.gltf")
-//   return(
-//   <mesh>
-//   <pointLight intensity={1} />
-//   <primitive
-//       object={stagef.scene}
-//       scale={0.75}
-//       position={[0, -3.25, 1.5]}
-//       rotation={[-0.01, -0.2, -0.1]}
-//   />
-// </mesh>
-//   )
-// };
-  const updateFixture = useCallback((id, update) => {
+  // State and refs
+  const [objects, setObjects] = useState([]);
+  const [lights, setLights] = useState([]);
+  const [selectedModel, setSelectedModel] = useState(null);
+  const [selectedModelId, setSelectedModelId] = useState(null);
+  const [selectedModelPosition, setSelectedModelPosition] = useState([0, 0, 0]);
+  const [selectedModelRotation, setSelectedModelRotation] = useState([0, 0, 0]);
+  const [selectedModelScale, setSelectedModelScale] = useState([1, 1, 1]);
+  const [selectedModelColor, setSelectedModelColor] = useState([1, 1, 1]);
+  const [selectedModelIntensity, setSelectedModelIntensity] = useState(1);
+  const [selectedModelFocusPoint, setSelectedModelFocusPoint] = useState([0, 0, 0]);
+
+  const [selectedObject, setSelectedObject] = useState(null);
+  const [selectedLight, setSelectedLight] = useState(null);
+  const [selectedLightId, setSelectedLightId] = useState(null);
+  const [cues, setCues] = useState([]);
+  const [currentCueIndex, setCurrentCueIndex] = useState(-1);
+  const [modelUrl, setModelUrl] = useState('/stage.gltf');
+  const [renderer, setRenderer] = useState(null);
+  const [isButtonsVisible, setIsButtonsVisible] = useState(false);
+  const [isLightControlVisible, setIsLightControlVisible] = useState(false);
+  const [orbitEnabled, setEnableOrbit] = useState(true);
+  const [objectDimensions, setObjectDimensions] = useState({});
+  const canvasRef = useRef();
+
+  // Callbacks and handlers
+  const updateObjects = useCallback((id, update) => {
     setObjects(prevObjects => prevObjects.map(obj => {
       if (obj.id === id) {
-        // Fixture-specific updates
-        if (update.type === 'intensity') {
-          return {
-            ...obj,
-            intensity: update.value
-          };
-        }
-        if (update.type === 'beam') {
-          return {
-            ...obj,
-            angle: update.value
-          };
-        }
-        if (update.type === 'color') {
-          return {
-            ...obj,
-            color: update.value
-          };
-        }
-        // Generic transform updates
-        if (update.type) {
-          return {
-            ...obj,
-            [update.type]: update.value
-          };
-        }
-        // Position updates from DragHandler
-        return {
-          ...obj,
-          position: update
-        };
+        return update.type ? { ...obj, [update.type]: update.value } : { ...obj, position: update };
       }
       return obj;
     }));
   }, []);
-  
-  useEffect(() => {
-    // Preload all your models
-    useLoader.preload(GLTFLoader, './stage.gltf')
-    // Add any other models you need to preload
-  }, [])
-    // Handle new objects added from GeometryManager
-  // Function to add objects with a random position
-  const spotRefs = useRef({});  // Store refs for all spotlights
 
-  const canvasRef = useRef();
+  const handleObjectAdd = useCallback((geometry, color, worldSpace) => {
+    const newObject = {
+      id: Math.random(),
+      type: geometry,
+      color: color,
+      position: [
+        Math.random() * 10 - 5,
+        Math.random() * 10 + 5,
+        Math.random() * 10 - 5
+      ],
+      rotation: worldSpace.rotation || [0, 0, 0],
+      scale: worldSpace.scale || [1, 1, 1]
+    };
+    setObjects(prevObjects => [...prevObjects, newObject]);
+  }, []);
+
+  const handleLightAdd = useCallback((intensity, color) => {
+    const randomPosition = [Math.random() * 10 - 5, 5, 0];
+    const newLight = {
+      id: Math.random(),
+      type: 'spotLight',
+      position: randomPosition,
+      color: color,
+      intensity: intensity,
+      focusPoint: [randomPosition[0], 0, randomPosition[2]]
+    };
+    setSelectedLightId(newLight.id);
+    setObjects(prevLights => [...prevLights, newLight]);
+  }, []);
+  const onUpdateLight = useCallback((id, { type, value }) => {
+    setObjects(prevLights =>
+      prevLights.map(light =>
+        light.id === id ? { ...light, [type]: value } : light
+      )
+    );
+  }, []);
+
+  const applyCue = useCallback((cueIndex) => {
+    if (cueIndex < 0 || cueIndex >= cues.length) return;
+    const cue = cues[cueIndex];
+    const { position, intensity, color, focusPoint } = cue.lightState;
+    console.log("position", position)
+    setObjects(prevLights => prevLights.map(light => 
+      light.id === selectedLightId 
+        ? { 
+            ...light, 
+            position: [position[0], position[1], position[2]],
+            intensity,
+            color,
+            focusPoint: [focusPoint[0], focusPoint[1], focusPoint[2]],
+          }
+        : light
+    ));
+    console.log("HI here the light is ",cue)
+
+    setCurrentCueIndex(cueIndex);
+  }, [cues, selectedLightId]); 
+
+  const toggleButtonsVisibility = useCallback(() => {
+    setIsButtonsVisible(prev => !prev);
+  }, []);
+
+  const toggleLightControl = useCallback(() => {
+    setIsLightControlVisible(prev => !prev);
+  }, []);
+
+  const handleCuesUpdate = useCallback((updatedCues) => {
+    setCues(updatedCues);
+    console.log("Cues updated:", updatedCues);
+  }, []);
+  const handleBoundsUpdate = useCallback((dimensions) => {
+    setObjectDimensions(dimensions);
+  }, []);
+
+  const handleSelectLight = useCallback((lightData) => {
+    setSelectedLight(lightData);
+  }, []);
+
+  const handleUpdateLight = useCallback((id, { type, value }) => {
+    setObjects(lights.map(light => 
+      light.id === id ? { ...light, [type]: value } : light
+    ));
+  }, []);
+
+  // Effects
+  useEffect(() => {
+    useLoader.preload(GLTFLoader, './stage.gltf');
+    useLoader.preload(GLTFLoader, modelUrl);
+  }, [modelUrl]);
 
   useEffect(() => {
     const initWebGPU = async () => {
@@ -109,257 +173,147 @@ export default function Stage() {
         console.error("WebGPU not supported");
         return;
       }
-
       const adapter = await navigator.gpu.requestAdapter();
       const device = await adapter.requestDevice();
-
-      // 設置 WebGPU 渲染邏輯
-      // ...
     };
-
     initWebGPU();
   }, []);
-  
+  useEffect(() => {
+    console.log('Lights Updated:', objects);
+  }, [objects]);
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.code === 'Space') {
+        event.preventDefault(); // Prevent default spacebar behavior
 
-  const [objectDimensions, setObjectDimensions] = useState({});
-  const handleBoundsUpdate = (dimensions) => {
-    setObjectDimensions(dimensions);
-  };
-  const [selectedFixture, setSelectedFixture] = useState(null);
-    const [orbitEnabled, setEnableOrbit] = useState(true);
-    const [selectedObject, setSelectedObject] = useState(null);
-    const [highestId, setHighestId] = useState(0);
-    
-    const [objects, setObjects] = useState([]);
-// In your main component where you manage lights
-const handleLightAdd = (intensity, color) => {
-  // Generate a random position for the new light
-  const randomPosition = [
-    Math.random() * 10 - 5, // Random X from -5 to 5
-    5,                     // Fixed Y
-    0  // Random Z from -5 to 5
-  ];
+        if (event.shiftKey) {
+          // Shift + Space: Previous Cue
+          const newIndex = currentCueIndex > 0 ? currentCueIndex - 1 : cues.length - 1;
+          applyCue(newIndex);
+        } else {
+          // Space: Next Cue
+          const newIndex = (currentCueIndex + 1) % cues.length;
+          applyCue(newIndex);
+        }
+      }
+    };
 
-  // Create a new light object
-  const newLight = {
-    id: Math.random(),
-    type: 'spotLight',
-    position: randomPosition, // Assign the generated random position
-    color: color,
-    intensity: intensity,
-    focusPoint: [randomPosition[0], 0, randomPosition[2]] // Use the same X and Z for focus
-  };
-  setSelectedLightId(newLight.id);  // Update the state with the new light
-  setObjects(prevLights => [...prevLights, newLight]);
-  // Log the new light position for debugging
-  console.log("New light position is:", newLight.position);
-  console.log("Focus point is:", newLight.focusPoint);
-  console.log("ID is:", newLight.id);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentCueIndex, cues.length, applyCue]);
 
-};
-
-const [selectedLight, setSelectedLight] = useState(null);
-const handleSelectLight = (lightData) => {
-  
-  setSelectedLight(lightData);
-};
-    const [renderer, setRenderer] = useState(null);
-    const [isLightControlVisible, setIsLightControlVisible] = useState(false);
-  const [lights, setLights] = useState([]);
-  const [selectedLightId, setSelectedLightId] = useState(null);
   useEffect(() => {
     console.log("Updated selectedLightId:", selectedLightId);
   }, [selectedLightId]);
-  const [modelUrl, setModelUrl] = useState('/stage.gltf');
+
   useEffect(() => {
-    // Preload the model
-    useLoader.preload(GLTFLoader, modelUrl);
-  }, [modelUrl]);
+    const canvas = document.getElementById('myCanvas');
+    initializeWebGPU(canvas);
+  }, []);
 
-
-  const handleUpdateLight = (id, { type, value }) => {
-    setLights(lights.map(light => 
-      light.id === id ? { ...light, [type]: value } : light
-    ));
-  };
-
-  
-    const toggleLightControl = () => {
-      setIsLightControlVisible(prev => !prev);
-    };
-  
-    useEffect(() => {
-      const canvas = document.getElementById('myCanvas');
-      initializeWebGPU(canvas);
-    }, []);
-    const defaultModelUrl = "./light.gltf";
-    // Function to toggle visibility
-    const handleObjectAdd = (geometry, color, worldSpace) => {
-      const newObject = {
-        id: Math.random(),
-        type: geometry,
-        color: color,
-        position: [
-          //0,3,0
-          Math.random() * 10 - 5, // Random X from -5 to 5
-          Math.random() * 10 + 5, // Random Y from -5 to 5
-          Math.random() * 10 - 5 // Random Z from -5 to 5
-          ],
-        rotation: worldSpace.rotation ? [worldSpace.rotation.x, worldSpace.rotation.y, worldSpace.rotation.z] : [0, 0, 0],
-        scale: worldSpace.scale ? [worldSpace.scale.x, worldSpace.scale.y, worldSpace.scale.z] : [1, 1, 1] 
-      };
-      setObjects(prevObjects => [...prevObjects, newObject]);
-    };
-    const [isButtonsVisible, setIsButtonsVisible] = useState(false);
-    const toggleButtonsVisibility = () => {
-      setIsButtonsVisible(prev => {
-        const newValue = !prev;
-        console.log("Is Buttons Visible:", newValue); // Log the new value
-        return newValue;
-      });
-    };
-      // ... other states
-      const updateObjects = useCallback((id, update) => {
-        setObjects(prevObjects => prevObjects.map(obj => {
-          if (obj.id === id) {
-            // For transform updates coming from Buttons.jsx
-            if (update.type === 'color') {
-              return {
-                ...obj,
-                color: update.value
-              };
-            }
-            if (update.type) {
-              return {
-                ...obj,
-                [update.type]: update.value
-              };
-            }
-            // For position updates coming from DragHandler
-            return {
-              ...obj,
-              position: update
-            };
-          }
-          return obj;
-        }));
-      }, []);
-
-    return (
-      <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
-          <ModelLoader onModelSelect={(file) => {
-            const url = URL.createObjectURL(file);
-            setModelUrl(url);
-          }} />
-        <EditBar toggleButtonsVisibility={toggleButtonsVisibility} toggleLightControl={toggleLightControl} />
-        <AddObject
-          addObject={handleObjectAdd}
-          updateObject={updateObjects}
-          isVisible={isButtonsVisible}
-          selectedObject={selectedObject && objects.find(obj => obj.id === selectedObject)}
-        />    
-        <AddLight
+  // Render
+  return (
+    <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+      <ModelLoader onModelSelect={(file) => {
+        const url = URL.createObjectURL(file);
+        setModelUrl(url);
+      }} />
+      <EditBar toggleButtonsVisibility={toggleButtonsVisibility} toggleLightControl={toggleLightControl} />
+      <AddObject
+        addObject={handleObjectAdd}
+        updateObject={updateObjects}
+        isVisible={isButtonsVisible}
+        selectedObject={selectedObject && objects.find(obj => obj.id === selectedObject)}
+      />
+      <AddLight
         isVisible={isLightControlVisible}
         onLightAdd={handleLightAdd}
         selectedLight={selectedLight}
-        onUpdateLight={handleUpdateLight}
+        onUpdateLight={onUpdateLight}  // Pass the onUpdate function
+        onCuesUpdate={handleCuesUpdate} // Example cue update handler
+
+        cues={cues}
       />
       <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
         <Canvas
-        gl={async (canvas) => {
-          if (!navigator.gpu) {
-            throw new Error('WebGPU not supported');
-          }
-          
-          // Wait for adapter and device
-          const adapter = await navigator.gpu.requestAdapter();
-          const device = await adapter.requestDevice();
-          
-          const renderer = new WebGPURenderer({
-            canvas,
-            antialias: true,
-            device,
-            alpha: true
-          });
-          
-          await renderer.init(); // Important!
-          renderer.setClearColor('#202020');
-          renderer.setSize(window.innerWidth, window.innerHeight);
-          
-          return renderer;
-        }}
-        onCreated={({ gl }) => {
-          setRenderer(gl);
-        }}
-        fallback={<span>WebGPU not supported</span>}
-      >
-         
-        {renderer && (
-          <>
+          gl={async (canvas) => {
+            if (!navigator.gpu) {
+              throw new Error('WebGPU not supported');
+            }
+            const adapter = await navigator.gpu.requestAdapter();
+            const device = await adapter.requestDevice();
+            const renderer = new WebGPURenderer({
+              canvas,
+              antialias: true,
+              device,
+              alpha: true
+            });
+            await renderer.init();
+            renderer.setClearColor('#202020');
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            return renderer;
+          }}
+          onCreated={({ gl }) => {
+            setRenderer(gl);
+          }}
+          fallback={<span>WebGPU not supported</span>}
+        >
+          {renderer && (
+            <>
               <color attach="background" args={['#202020']} />
-              <OrbitControls enabled={orbitEnabled}/>
+              <OrbitControls enabled={orbitEnabled} />
               <Suspense fallback={null}>
-        <PreloadedModel url={modelUrl} />
-      </Suspense>
+                <PreloadedModel url={modelUrl} />
+              </Suspense>
               <CameraController />
               <ambientLight intensity={0.5} />
               <ObjectSelector selectedObject={selectedObject} setSelectedObject={setSelectedObject} setEnableOrbit={setEnableOrbit} />
               <LightSelector
-onSelectLight={handleSelectLight}
-  // 或者直接寫成
-  // onSelectLight={handleSelectLight}
-  onUpdateLight={handleUpdateLight}
-  setEnableOrbit={setEnableOrbit}
-  selectedLightid={selectedLightId}
-  selectedLight={selectedLight}  
-  setselectedLightid={setSelectedLightId}// 注意這裡傳入 selectedLight 而不是 selectedLightId
-/>
-                {/* Lights group */}
-                <group>
-  {objects.map((item) => {
-    switch(item.type) {
-      case 'spotLight':
-        return (
-          <LightRenderer
-          key={`light-${item.id}`}
-         light={item} // Assuming object contains position, color, intensity, etc.
-          isSelected={selectedLight === item.id}
-        />
-            
-         
-        );
-      default:
-        return (
-          <GeometryRenderer 
-            key={`geo-${item.id}`}
-            object={item} 
-            isSelected={selectedObject === item.id}
-            onBoundsUpdate={handleBoundsUpdate} 
-          />
-        );
-    }
-
-  })}
-                <DragHandler 
-                selectedObject={selectedObject}
-                objects={objects}
+                onSelectLight={handleSelectLight}
+                onUpdateLight={handleUpdateLight}
                 setEnableOrbit={setEnableOrbit}
-                updateObjects={updateObjects}
-                dimensions={objectDimensions}
+                selectedLightid={selectedLightId}
+                selectedLight={selectedLight}
+                setselectedLightid={setSelectedLightId}
               />
-</group>
+              <group>
+                {objects.map((item) => {
+                  switch (item.type) {
+                    case 'spotLight':
+                      return (
+                        <LightRenderer
+                          key={`light-${item.id}`}
+                          light={item}
+                          isSelected={selectedLight === item.id}
+                        />
+                      );
+                    default:
+                      return (
+                        <GeometryRenderer
+                          key={`geo-${item.id}`}
+                          object={item}
+                          isSelected={selectedObject === item.id}
+                          onBoundsUpdate={handleBoundsUpdate}
+                        />
+                      );
+                  }
+                })}
+                <DragHandler
+                  selectedObject={selectedObject}
+                  objects={objects}
+                  setEnableOrbit={setEnableOrbit}
+                  updateObjects={updateObjects}
+                  dimensions={objectDimensions}
+                />
+              </group>
               <Scene />
-
-
               <PerspectiveCamera makeDefault position={[0, 1, 30]} />
-
-
-
             </>
-               )}
-              </Canvas>
-              </div>
-              </div>
-            );
-  
-  }
+          )}
+        </Canvas>
+      </div>
+    </div>
+  );
+}

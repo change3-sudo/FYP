@@ -15,8 +15,8 @@ function CameraController() {
     };
     useFrame(() => {
       // Example: Prevent the camera from moving below the y = 0 plane
-      if (camera.position.y < 0.5) {
-        camera.position.y = 0.5;
+      if (camera.position.y < 1) {
+        camera.position.y = 1;
       }
     });
   

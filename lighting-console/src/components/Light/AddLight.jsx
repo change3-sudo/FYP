@@ -3,21 +3,59 @@ import React, { useState, useEffect } from 'react';
 const DEFAULT_INTENSITY = 0.5;
 const MAX_INTENSITY = 1;
 const DISPLAY_MULTIPLIER = 100; // Factor to convert between display and actual values
-const AddLight = ({ isVisible, onLightAdd, selectedLight, onUpdateLight }) => {
+const DEFAULT_COLOR = '#ffffff';
+const DEFAULT_POSITION = { x: 0, y: 8, z: 0 };
+
+const AddLight = ({ 
+  isVisible, 
+  onLightAdd, 
+  selectedLight, 
+  onUpdateLight, 
+  onCuesUpdate, 
+  onCueSelect 
+}) => {
   const [intensity, setIntensity] = useState(DEFAULT_INTENSITY);
-  const [color, setColor] = useState('#ffffff');
-  const defaultPosition = { x: 0, y: 8, z: 0 };
-  const [position, setPosition] = useState(defaultPosition);
+  const [color, setColor] = useState(DEFAULT_COLOR);
+  const [position, setPosition] = useState(DEFAULT_POSITION);
+  const [cues, setCues] = useState([]);
+  const [currentCueIndex, setCurrentCueIndex] = useState(-1);
+
+  const calculateFocusPoint = (position) => {
+    // Example: Focus directly below the light
+    return { x: position.x, y: 0, z: position.z };
+  };
+
+  const recordCue = () => {
+    if (!selectedLight) return;
+
+    const newCue = {
+      name: `Cue ${cues.length + 1}`,
+      lightState: {
+        position: { ...position },
+        intensity,
+        color,
+        focusPoint: calculateFocusPoint(position)
+      }
+    };
+
+    const updatedCues = [...cues, newCue];
+    setCues(updatedCues);
+
+    // Notify parent about the updated cues list
+    if (onCuesUpdate) {
+      onCuesUpdate(updatedCues);
+    }
+  };
 
   useEffect(() => {
     if (selectedLight) {
       setPosition(arrayToObject(selectedLight.position));
       setIntensity(selectedLight.intensity); // Store actual intensity
-      setColor(selectedLight.color || '#ffffff');
+      setColor(selectedLight.color || DEFAULT_COLOR);
     } else {
-      setPosition(defaultPosition);
+      setPosition(DEFAULT_POSITION);
       setIntensity(DEFAULT_INTENSITY);
-      setColor('#ffffff');
+      setColor(DEFAULT_COLOR);
     }
   }, [selectedLight]);
 
@@ -34,18 +72,14 @@ const AddLight = ({ isVisible, onLightAdd, selectedLight, onUpdateLight }) => {
       });
     }
   };
-  
 
   const handleIntensityChange = (e) => {
     const newValue = parseFloat(e.target.value);
-    console.log("INTENSITY", newValue)
-
     setIntensity(newValue); 
-    // Store actual intensity
     if (selectedLight) {
       onUpdateLight(selectedLight.id, {
         type: 'intensity',
-        value: newValue // Pass actual intensity
+        value: newValue
       });
     }
   };
@@ -63,22 +97,23 @@ const AddLight = ({ isVisible, onLightAdd, selectedLight, onUpdateLight }) => {
   const arrayToObject = (arr) => {
     return Array.isArray(arr) 
       ? { x: arr[0] || 0, y: arr[1] || 0, z: arr[2] || 0 }
-      : defaultPosition;
+      : DEFAULT_POSITION;
   };
 
   const objectToArray = (obj) => [obj.x, obj.y, obj.z];
 
   const handleAdd = () => {
     const positionArray = objectToArray(position);
-    onLightAdd(intensity, color, { // Pass actual intensity
+    onLightAdd(intensity, color, {
       x: positionArray[0], 
       y: positionArray[1], 
       z: positionArray[2] 
     });
   };
 
-  // Calculate display intensity (actual value * 0.1)
-  const displayIntensity = intensity * DISPLAY_MULTIPLIER ;
+  // Calculate display intensity (actual value * DISPLAY_MULTIPLIER)
+  const displayIntensity = intensity * DISPLAY_MULTIPLIER;
+
   return (
     <div className={`fixed z-40 w-full md:w-1/2 xl:w-1/3 h-full bg-gray-800 text-white pt-4 space-y-4 ${isVisible ? 'flex-col' : 'hidden'}`}>
       <div className="px-4">
@@ -130,6 +165,22 @@ const AddLight = ({ isVisible, onLightAdd, selectedLight, onUpdateLight }) => {
         >
           Add Light
         </button>
+        <button 
+          onClick={recordCue}
+          className="w-full p-2 bg-green-500 rounded hover:bg-green-600 transition-colors mt-2"
+        >
+          Record Cue
+        </button>
+        <div className="mt-4">
+          <h3 className="text-xl mb-2">Cue List</h3>
+          <ul>
+            {cues.map((cue, index) => (
+              <li key={index} className="mb-1">
+                {cue.name}
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   );

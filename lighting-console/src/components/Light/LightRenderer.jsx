@@ -18,7 +18,8 @@ const LightRenderer = ({ light, isSelected, intensity  }) => {
 
     return (
         
-        <Spot {...materialProps} {...props} />
+        <Spot {...materialProps} {...props}      shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024} />
     );
 };
 

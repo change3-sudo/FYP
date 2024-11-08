@@ -1,9 +1,12 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import { useThree, useFrame, extend } from '@react-three/fiber';
+import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
+// Function to calculate power with a dynamic scaling factor based on intensity
 const calculatePower = (intensity) => {
-  return intensity * 100; // Example scaling factor
+  // Example: Non-linear scaling factor, could be adjusted as needed
+  const scalingFactor = 400 * Math.pow(intensity, 2);
+  return intensity * scalingFactor;
 };
 
 function VolumetricSpotlightMaterial({
@@ -70,7 +73,7 @@ function VolumetricSpotlightMaterial({
 const CustomVolSpotlight = React.forwardRef(function MyVolSpotlight(props, ref) {
   const custom = useRef();
   const spotlight = useRef();
-  const { scene } = useThree();
+  const { scene, camera } = useThree();
 
   const {
     angle = 0.3,
@@ -103,13 +106,15 @@ const CustomVolSpotlight = React.forwardRef(function MyVolSpotlight(props, ref) 
     custom.current.geometry = new THREE.ConeGeometry(radius * 1.5, height, 64, 30, 40, true);
     custom.current.geometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0, -height / 2, 0));
     custom.current.geometry.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
-
+    if (custom.current.material.uniforms.viewVector) {
+      custom.current.material.uniforms.viewVector.value = camera.position;
+    }
     // Set shader uniforms
     if (custom.current.material) {
       custom.current.material.uniforms.lightColor.value = new THREE.Color(color);
       custom.current.material.uniforms.intensity.value = intensity;
     }
-  }, [scene, color, position, angle, distance, target, intensity]);
+  }, [scene, color, position, angle, camera, distance, target, intensity]);
 
   useFrame(({ camera }) => {
     if (!custom.current) return;
