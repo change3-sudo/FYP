@@ -9,6 +9,7 @@ import Library from './Library';
 import ObjectSelector from './Object/ObjectSelector';
 import CameraController from './CameraController'
 import DragHandler from './DragHandler';
+import LightDrag from './LightDrag'
 import GeometryRenderer from './Object/GeometryRenderer'
 import ModelLoader from './ModelLoader';
 import GeometryManager from './Object/GeometryManager';
@@ -36,5 +37,6 @@ export {
     Model,
     Spot,
     Scene,
+    LightDrag,
     CustomVolSpotlight
 };

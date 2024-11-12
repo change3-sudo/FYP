@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import WebGPURenderer from 'three/src/renderers/webgpu/WebGPURenderer.js';
 import './styles.css';
+import LightDrag from './LightDrag'
 
 // Three.js imports
 import { Vector3, Vector2, Raycaster } from 'three';
@@ -21,7 +22,8 @@ import AddLight from './Light/AddLight';
 import LightRenderer from './Light/LightRenderer';
 import LightSelector from './Light/LightSelector';
 import DragHandler from './DragHandler';
-
+import { v4 as uuidv4 } from 'uuid';
+import CueMode from './Cue/CueMode'
 // Utility function for initializing WebGPU
 async function initializeWebGPU(canvas) {
   if (!navigator.gpu) {
@@ -39,37 +41,103 @@ function PreloadedModel({ url }) {
   const gltf = useLoader(GLTFLoader, url);
   return <primitive object={gltf.scene} scale={0.75} />;
 }
+function generateShortId() {
+  return Math.random().toString(36).substring(2, 6);
+}
+
+const LightGroup = ({ lightStack, selectedLight, onUpdateLight, currentChannel,isChannelSubmitted }) => {
+  return (
+    <group>
+      {lightStack.map(light => (
+        <LightRenderer
+          key={light.id}
+          light={light}
+          isSelected={selectedLight === light.id}
+          isChannelSubmitted={isChannelSubmitted} 
+          currentChannel={currentChannel} 
+        />
+      ))}
+        <LightDrag
+          lightStack={lightStack}
+          selectedLight={selectedLight}
+           // Assuming it's a single ID
+          
+          onUpdateLight={onUpdateLight}
+        />
+      
+    </group>
+      
+  );
+};
+
+
+const ObjectGroup = ({ objects, selectedObject, setEnableOrbit, updateObjects, objectDimensions }) => {
+  return (
+    <group>
+      {objects.map(obj => (
+        <GeometryRenderer
+          key={obj.id}
+          object={obj}
+          isSelected={selectedObject === obj.id}
+          onBoundsUpdate={dimensions => updateObjects(obj.id, { type: 'dimensions', value: dimensions })}
+        />
+      ))}
+      {selectedObject && objects.find(obj => obj.id === selectedObject) && (
+        <DragHandler
+          selectedObject={selectedObject}
+          objects={objects}//unit
+          setEnableOrbit={setEnableOrbit}
+          updateObjects={updateObjects}
+          dimensions={objectDimensions}
+        />
+      )}
+    </group>
+  );
+};
+
 
 // Main Stage component
 export default function Stage() {
-  // State and refs
-  const [objects, setObjects] = useState([]);
-  const [lights, setLights] = useState([]);
-  const [selectedModel, setSelectedModel] = useState(null);
-  const [selectedModelId, setSelectedModelId] = useState(null);
-  const [selectedModelPosition, setSelectedModelPosition] = useState([0, 0, 0]);
-  const [selectedModelRotation, setSelectedModelRotation] = useState([0, 0, 0]);
-  const [selectedModelScale, setSelectedModelScale] = useState([1, 1, 1]);
-  const [selectedModelColor, setSelectedModelColor] = useState([1, 1, 1]);
-  const [selectedModelIntensity, setSelectedModelIntensity] = useState(1);
-  const [selectedModelFocusPoint, setSelectedModelFocusPoint] = useState([0, 0, 0]);
+  // all units
+  const [units, setUnits] = useState([]);
 
-  const [selectedObject, setSelectedObject] = useState(null);
-  const [selectedLight, setSelectedLight] = useState(null);
-  const [selectedLightId, setSelectedLightId] = useState(null);
+
+// All lights
+  const [lightStack, setLightStack] = useState([]); 
+  const [selectedLightStack, setSelectedLightStack] = useState([]);
+  const [isChannelSubmitted, setIsChannelSubmitted] = useState(false);
+  const [currentChannel, setCurrentChannel] = useState(null); // New state for channel
+
+  //cue
   const [cues, setCues] = useState([]);
+
+// All objects
+  
+  const [selectedObject, setSelectedObject] = useState(null);
+
   const [currentCueIndex, setCurrentCueIndex] = useState(-1);
   const [modelUrl, setModelUrl] = useState('/stage.gltf');
   const [renderer, setRenderer] = useState(null);
   const [isButtonsVisible, setIsButtonsVisible] = useState(false);
+  const [isCueControlVisible, setIsCueControlVisible] = useState(false);
   const [isLightControlVisible, setIsLightControlVisible] = useState(false);
   const [orbitEnabled, setEnableOrbit] = useState(true);
   const [objectDimensions, setObjectDimensions] = useState({});
   const canvasRef = useRef();
 
-  // Callbacks and handlers
+
+
+
+
+  
+  const toggleButtonsVisibility = useCallback(() => {
+    setIsButtonsVisible(prev => !prev);
+  }, []);
+
+
+  //Object functions
   const updateObjects = useCallback((id, update) => {
-    setObjects(prevObjects => prevObjects.map(obj => {
+    setUnits(prevObjects => prevObjects.map(obj => {
       if (obj.id === id) {
         return update.type ? { ...obj, [update.type]: update.value } : { ...obj, position: update };
       }
@@ -90,76 +158,188 @@ export default function Stage() {
       rotation: worldSpace.rotation || [0, 0, 0],
       scale: worldSpace.scale || [1, 1, 1]
     };
-    setObjects(prevObjects => [...prevObjects, newObject]);
+    setUnits(prevObjects => [...prevObjects, newObject]);
   }, []);
 
-  const handleLightAdd = useCallback((intensity, color) => {
-    const randomPosition = [Math.random() * 10 - 5, 5, 0];
-    const newLight = {
-      id: Math.random(),
-      type: 'spotLight',
-      position: randomPosition,
-      color: color,
-      intensity: intensity,
-      focusPoint: [randomPosition[0], 0, randomPosition[2]]
-    };
-    setSelectedLightId(newLight.id);
-    setObjects(prevLights => [...prevLights, newLight]);
-  }, []);
-  const onUpdateLight = useCallback((id, { type, value }) => {
-    setObjects(prevLights =>
-      prevLights.map(light =>
-        light.id === id ? { ...light, [type]: value } : light
-      )
-    );
-  }, []);
 
-  const applyCue = useCallback((cueIndex) => {
-    if (cueIndex < 0 || cueIndex >= cues.length) return;
-    const cue = cues[cueIndex];
-    const { position, intensity, color, focusPoint } = cue.lightState;
-    console.log("position", position)
-    setObjects(prevLights => prevLights.map(light => 
-      light.id === selectedLightId 
-        ? { 
-            ...light, 
-            position: [position[0], position[1], position[2]],
-            intensity,
-            color,
-            focusPoint: [focusPoint[0], focusPoint[1], focusPoint[2]],
-          }
-        : light
-    ));
-    console.log("HI here the light is ",cue)
 
-    setCurrentCueIndex(cueIndex);
-  }, [cues, selectedLightId]); 
-
-  const toggleButtonsVisibility = useCallback(() => {
-    setIsButtonsVisible(prev => !prev);
-  }, []);
-
-  const toggleLightControl = useCallback(() => {
-    setIsLightControlVisible(prev => !prev);
-  }, []);
-
-  const handleCuesUpdate = useCallback((updatedCues) => {
-    setCues(updatedCues);
-    console.log("Cues updated:", updatedCues);
-  }, []);
   const handleBoundsUpdate = useCallback((dimensions) => {
     setObjectDimensions(dimensions);
   }, []);
 
-  const handleSelectLight = useCallback((lightData) => {
-    setSelectedLight(lightData);
+
+  const handleLightAdd = useCallback((id,intensity, color, channel, position) => {
+    const randomPosition = [Math.random() * 10 - 5, 5, 0];
+    const newLightId = generateShortId();
+    const newLight = {
+      id: id,
+      type: 'spotLight',
+      position: randomPosition,
+      color: color,
+      intensity: intensity,
+      channel:currentChannel,
+      focusPoint: [randomPosition[0], 0, randomPosition[2]],
+      
+    };
+  
+    setLightStack(prevLights => [...prevLights, newLight]);
+    console.log('Light added:', newLight);
+  }, []);
+  
+  
+  
+
+  
+  const onUpdateLight = useCallback((id, { type, value }) => {
+    setLightStack(prevLights => {
+      if (type === 'remove') {
+        // Remove the light with the specified ID
+        return prevLights.filter(light => light.id !== id);
+      }
+      // Update the light with the specified ID
+      return prevLights.map(light =>
+        light.id === id ? { ...light, [type]: value } : light
+      );
+    });
+    if (type === 'channel') {
+      setCurrentChannel(value); // Update the current channel state
+      setIsChannelSubmitted(true);
+      console.log('Channel updated for light with ID:', id, 'New Channel:', value);
+    }
+    if (type === 'remove') {
+      console.log('Removed light with ID:', id);
+    }
+  }, []);
+  
+  
+
+
+  const toggleLightControl = useCallback(() => {
+    setIsLightControlVisible(prev => !prev);
+  }, []);
+  const toggleCueControl = useCallback(() => {
+    setIsCueControlVisible(prev => !prev);
+  }, []);
+  const handleCuesUpdate = useCallback((updatedCues) => {
+    setCues(updatedCues);
+    console.log("Cues updated:", updatedCues);
   }, []);
 
-  const handleUpdateLight = useCallback((id, { type, value }) => {
-    setObjects(lights.map(light => 
-      light.id === id ? { ...light, [type]: value } : light
-    ));
-  }, []);
+
+  const handleSelectLight = (lightData) => {
+    console.log('Light data received:', lightData);
+    // Perform additional actions with the selected light data
+  };
+  
+  const recordCue = useCallback(() => {
+    const currentLightsState = lightStack.map(light => ({
+      id: light.id,
+      position: light.position,
+      intensity: light.intensity,
+      color: light.color,
+      focusPoint: light.focusPoint,
+    }));
+  
+    const newCue = {
+      id: uuidv4(),
+      name: `Cue ${1 + cues.length}`,
+      lightState: currentLightsState,
+    };
+  
+    setCues(prevCues => {
+      const updatedCues = [...prevCues, newCue];
+      console.log('Updated cues:', updatedCues); // Log inside the callback
+      return updatedCues;
+    });
+  
+    console.log('Cue recorded:', newCue);
+  }, [lightStack, cues]);
+
+  const fadeToCue = (targetCueIndex, duration = 3000) => {
+    const targetCue = cues[targetCueIndex];
+    if (!targetCue) return; // Ensure the target cue exists
+  
+    const { lightState: targetLightState } = targetCue;
+    const startTime = performance.now();
+  
+    const animate = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1); // Calculate animation progress
+  
+      targetLightState.forEach(targetLight => {
+        const currentLight = lightStack.find(light => light.id === targetLight.id);
+        if (!currentLight) return;
+  
+        const interpolate = (start, end) => start + (end - start) * progress;
+  
+        const newPosition = [
+          interpolate(currentLight.position[0], targetLight.position[0]),
+          interpolate(currentLight.position[1], targetLight.position[1]),
+          interpolate(currentLight.position[2], targetLight.position[2])
+        ];
+  
+        const newIntensity = interpolate(currentLight.intensity, targetLight.intensity);
+        // const newColor = interpolateColor(currentLight.color, targetLight.color, progress);
+  
+        // Update light properties
+        onUpdateLight(targetLight.id, { type: 'position', value: newPosition });
+        onUpdateLight(targetLight.id, { type: 'intensity', value: newIntensity });
+        // onUpdateLight(targetLight.id, { type: 'color', value: newColor });
+      });
+  
+      if (progress < 1) {
+        requestAnimationFrame(animate); // Continue animation if not complete
+      } else {
+        setCurrentCueIndex(targetCueIndex); // Update current cue index when animation completes
+      }
+    };
+  
+    requestAnimationFrame(animate); // Start animation
+  };
+  // Helper function to interpolate colors
+  const interpolateColor = (startColor, endColor, progress) => {
+    const startRGB = parseColor(startColor);
+    const endRGB = parseColor(endColor);
+  
+    const interpolate = (start, end) => Math.round(start + (end - start) * progress);
+  
+    return `rgb(${interpolate(startRGB[0], endRGB[0])}, ${interpolate(startRGB[1], endRGB[1])}, ${interpolate(startRGB[2], endRGB[2])})`;
+  };
+  
+  // Helper function to parse color strings into RGB arrays
+  const parseColor = (color) => {
+    const match = color.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+    return match ? [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])] : [0, 0, 0];
+  };
+  
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.code === 'Space') {
+        event.preventDefault();
+  
+        if (event.shiftKey) {
+          // Shift + Space: Previous Cue
+          const newIndex = currentCueIndex > 0 ? currentCueIndex - 1 : cues.length - 1;
+          fadeToCue(newIndex);
+          console.log("cue number", newIndex + 1);
+        } else if(currentCueIndex !== cues.length) {
+          // Space: Next Cue
+          const newIndex = (currentCueIndex + 1) % cues.length;
+          fadeToCue(newIndex);
+          console.log("cue number", newIndex + 1);
+        }
+      }
+    };
+  
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentCueIndex, cues.length, fadeToCue]);
+
+  
+  // Helper function to interpolate colors
+ 
 
   // Effects
   useEffect(() => {
@@ -179,40 +359,30 @@ export default function Stage() {
     initWebGPU();
   }, []);
   useEffect(() => {
-    console.log('Lights Updated:', objects);
-  }, [objects]);
+    console.log('Lights Updated:', selectedLightStack);
+  }, [selectedLightStack]);
   useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (event.code === 'Space') {
-        event.preventDefault(); // Prevent default spacebar behavior
+    console.log('unit Updated:', units);
+  }, [units]);
+  useEffect(() => {
+    console.log('EnableOrbit Updated:', orbitEnabled);
+  }, [orbitEnabled]);
 
-        if (event.shiftKey) {
-          // Shift + Space: Previous Cue
-          const newIndex = currentCueIndex > 0 ? currentCueIndex - 1 : cues.length - 1;
-          applyCue(newIndex);
-        } else {
-          // Space: Next Cue
-          const newIndex = (currentCueIndex + 1) % cues.length;
-          applyCue(newIndex);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [currentCueIndex, cues.length, applyCue]);
+  
+  
+  
 
   useEffect(() => {
-    console.log("Updated selectedLightId:", selectedLightId);
-  }, [selectedLightId]);
-
+    console.log("selectedLightStack:",selectedLightStack);
+  }, [selectedLightStack]);
+  useEffect(() => {
+    console.log("LightStack:",lightStack);
+  }, [lightStack]);
   useEffect(() => {
     const canvas = document.getElementById('myCanvas');
     initializeWebGPU(canvas);
   }, []);
-
+  const selectedLight = Array.isArray(selectedLightStack) && selectedLightStack.length > 0 ? selectedLightStack[0] : null;
   // Render
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
@@ -220,22 +390,26 @@ export default function Stage() {
         const url = URL.createObjectURL(file);
         setModelUrl(url);
       }} />
-      <EditBar toggleButtonsVisibility={toggleButtonsVisibility} toggleLightControl={toggleLightControl} />
+      <EditBar toggleButtonsVisibility={toggleButtonsVisibility} toggleLightControl={toggleLightControl} toggleCueControl={toggleCueControl} />
       <AddObject
         addObject={handleObjectAdd}
         updateObject={updateObjects}
         isVisible={isButtonsVisible}
-        selectedObject={selectedObject && objects.find(obj => obj.id === selectedObject)}
+        selectedObject={selectedObject && units.find(obj => obj.id === selectedObject)}
       />
       <AddLight
         isVisible={isLightControlVisible}
         onLightAdd={handleLightAdd}
-        selectedLight={selectedLight}
-        onUpdateLight={onUpdateLight}  // Pass the onUpdate function
-        onCuesUpdate={handleCuesUpdate} // Example cue update handler
+        selectedLight= {selectedLight && lightStack.find(light => light.id === selectedLight)}
+        setSelectedLightStack={setSelectedLightStack}
 
+        onCuesUpdate={handleCuesUpdate}
         cues={cues}
+        onRecordCue={recordCue} 
+        onUpdateLight={onUpdateLight}  // Pass the onUpdate function
+
       />
+      <CueMode isVisible={isCueControlVisible} onRecordCue = {recordCue} cues = {cues}/>
       <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
         <Canvas
           gl={async (canvas) => {
@@ -271,43 +445,29 @@ export default function Stage() {
               <ambientLight intensity={0.5} />
               <ObjectSelector selectedObject={selectedObject} setSelectedObject={setSelectedObject} setEnableOrbit={setEnableOrbit} />
               <LightSelector
-                onSelectLight={handleSelectLight}
-                onUpdateLight={handleUpdateLight}
-                setEnableOrbit={setEnableOrbit}
-                selectedLightid={selectedLightId}
-                selectedLight={selectedLight}
-                setselectedLightid={setSelectedLightId}
-              />
-              <group>
-                {objects.map((item) => {
-                  switch (item.type) {
-                    case 'spotLight':
-                      return (
-                        <LightRenderer
-                          key={`light-${item.id}`}
-                          light={item}
-                          isSelected={selectedLight === item.id}
-                        />
-                      );
-                    default:
-                      return (
-                        <GeometryRenderer
-                          key={`geo-${item.id}`}
-                          object={item}
-                          isSelected={selectedObject === item.id}
-                          onBoundsUpdate={handleBoundsUpdate}
-                        />
-                      );
-                  }
-                })}
-                <DragHandler
-                  selectedObject={selectedObject}
-                  objects={objects}
-                  setEnableOrbit={setEnableOrbit}
-                  updateObjects={updateObjects}
-                  dimensions={objectDimensions}
-                />
-              </group>
+  onSelectLight={handleSelectLight}
+  setEnableOrbit={setEnableOrbit}
+  lights={lightStack} // Pass all lights here
+  
+  setSelectedLightStack={setSelectedLightStack}
+/>
+              <LightGroup
+  lightStack={lightStack}
+  selectedLightStack={selectedLightStack}
+  selectedLight= {selectedLight && lightStack.find(light => light.id === selectedLight)}
+  onUpdateLight={onUpdateLight}
+  currentChannel={currentChannel} 
+  isChannelSubmitted={isChannelSubmitted} 
+/>
+
+
+        <ObjectGroup
+          objects={units}
+          selectedObject={selectedObject}
+          setEnableOrbit={setEnableOrbit}
+          updateObjects={updateObjects}
+          objectDimensions={objectDimensions}
+        />
               <Scene />
               <PerspectiveCamera makeDefault position={[0, 1, 30]} />
             </>

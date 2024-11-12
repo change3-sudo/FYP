@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-function EditBar({ toggleButtonsVisibility,  toggleLightControl, onFileImport }) {
+function EditBar({ toggleButtonsVisibility,  toggleLightControl,toggleCueControl, onFileImport }) {
   const [showOptions, setShowOptions] = useState(false);
 
   const toggleOptions = () => {
@@ -31,6 +31,12 @@ function EditBar({ toggleButtonsVisibility,  toggleLightControl, onFileImport })
             onClick={toggleLightControl}
           >
             Adjust Fixtures
+          </button>
+          <button 
+            className="py-1 px-2 bg-gray-700 hover:bg-gray-600 rounded"
+            onClick={toggleCueControl}
+          >
+            Cue mode
           </button>
           <button 
             className="py-1 px-2 bg-gray-700 hover:bg-gray-600 rounded"

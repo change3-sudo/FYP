@@ -3,7 +3,7 @@ import React, { useRef, useState, useCallback } from 'react';
 import { useThree } from '@react-three/fiber';
 import { Cylinder } from '@react-three/drei';
 
-const Axis = ({ axis, rotation, onDrag, objectPosition, setOrbitEnabled }) => {
+const Axis = ({  axis, rotation, onDrag, objectPosition }) => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef(new THREE.Vector3());
   const { camera, raycaster } = useThree();
@@ -36,7 +36,6 @@ const Axis = ({ axis, rotation, onDrag, objectPosition, setOrbitEnabled }) => {
   const handlePointerDown = useCallback((e) => {
     e.stopPropagation();
     setIsDragging(true);
-    setOrbitEnabled(false);
     getMovementPlane();
 
     // Calculate the intersection point
@@ -52,17 +51,18 @@ const Axis = ({ axis, rotation, onDrag, objectPosition, setOrbitEnabled }) => {
     dragStartRef.current.copy(intersectionPoint);
 
     e.target.setPointerCapture(e.pointerId);
-  }, [camera, raycaster, getMovementPlane, setOrbitEnabled]);
+
+  }, [camera, raycaster, getMovementPlane, , axis ]);
 
   const handlePointerMove = useCallback((e) => {
     if (!isDragging) return;
 
     const intersectionPoint = new THREE.Vector3();
     const cameraDirection = new THREE.Vector3();
-  camera.getWorldDirection(cameraDirection);
+    camera.getWorldDirection(cameraDirection);
 
-  const planeNormal = cameraDirection.negate(); // Plane normal facing towards the camera
-  const translationPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, dragStartRef.current);
+    const planeNormal = cameraDirection.negate(); // Plane normal facing towards the camera
+    const translationPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, dragStartRef.current);
     raycaster.setFromCamera(
       {
         x: (e.clientX / window.innerWidth) * 2 - 1,
@@ -85,9 +85,10 @@ const Axis = ({ axis, rotation, onDrag, objectPosition, setOrbitEnabled }) => {
 
   const handlePointerUp = useCallback((e) => {
     setIsDragging(false);
-    setOrbitEnabled(true);
+    (true);
     e.target.releasePointerCapture(e.pointerId);
-  }, [setOrbitEnabled]);
+
+  }, [ axis]);
 
   return (
     <Cylinder
