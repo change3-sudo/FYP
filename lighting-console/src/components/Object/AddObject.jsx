@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback,useState,useEffect } from 'react';
 import ModelLoader from '../ModelLoader';
 import * as THREE from "three";
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber'
@@ -49,7 +49,7 @@ function TransformRow({ label, value, onChange, type }) {
     </div>
   );
 }
-const AddObject = ({ addObject, isVisible, selectedObject, updateObject }) => {
+const AddObject = React.memo(({ addObject, isVisible, selectedObject, updateObject }) => {
   const [geometry, setGeometry] = useState('box');
   const [color, setColor] = useState('#ff0000');
   const defaultWorldSpace = {
@@ -83,7 +83,7 @@ const AddObject = ({ addObject, isVisible, selectedObject, updateObject }) => {
     }
   }, [selectedObject]);
 
-  const handlePositionChange = (newValue) => {
+  const handlePositionChange = useCallback((newValue) => {
     setWorldSpace(prev => ({
       ...prev,
       position: newValue
@@ -94,7 +94,7 @@ const AddObject = ({ addObject, isVisible, selectedObject, updateObject }) => {
         value: objectToArray(newValue)
       });
     }
-  };
+  }, [selectedObject]);
   const toggleOverlay = () => {
     setShowOverlay(!showOverlay);
   };
@@ -156,7 +156,7 @@ const AddObject = ({ addObject, isVisible, selectedObject, updateObject }) => {
   const visibilityClass = isVisible ? 'flex-col' : 'hidden';
 
   return (
-    <div className={`fixed z-40 w-full md:w-1/2 xl:w-1/3 h-full bg-gray-800 text-white pt-4 space-y-4 ${visibilityClass}`}>
+    <div className={`fixed z-40 bottom-15 w-full md:w-1/2 xl:w-1/3 h-full bg-gray-800 text-white pt-4 space-y-4 ${visibilityClass}`}>
       <div className="flex flex-col justify-between h-full">  {/* Adjusted for vertical layout */}
         <div className="px-4 flex-grow">
 
@@ -196,18 +196,7 @@ const AddObject = ({ addObject, isVisible, selectedObject, updateObject }) => {
               onChange={handleScaleChange}
             />
           </div>
-{/*   
-          <div className="flex justify-between mt-4">
-            <button className="px-3 py-1 bg-gray-700 rounded text-sm">World</button>
-            <button className="px-3 py-1 bg-gray-700 rounded text-sm">Local</button>
-            <button onClick={() => setWorldSpace({
-                position: { x: 0, y: 0, z: 0 },
-                rotation: { x: 0, y: 0, z: 0 },
-                scale: { x: 1, y: 1, z: 1 }
-            })} className="w-full p-2 bg-red-500 rounded hover:bg-red-600 transition-colors">
-              Reset
-            </button>
-          </div> */}
+
   
         </div>
 
@@ -216,6 +205,6 @@ const AddObject = ({ addObject, isVisible, selectedObject, updateObject }) => {
   );
     
 
-}
+})
 
 export default AddObject;

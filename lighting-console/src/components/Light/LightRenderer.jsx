@@ -1,33 +1,19 @@
 import React from 'react';
 import Spot from './Spot';
 
-const LightRenderer = React.memo(({ light, isSelected, intensity, isChannelSubmitted, onChannelSubmit }) => {
+const LightRenderer = React.memo(({ light, onFixtureIdChange }) => {
   if (!light) return null;
 
   const props = {
     position: light.position,
-    focusPoint: light.focusPoint,
-    color: isSelected ? 'red' : (light.color || 'white'),
-    intensity: intensity || light.intensity,
-    userData: { id: light.id },
+    color: light.color || 'white',
+    intensity: light.intensity,
     id: light.id,
-    channel:  'N/A' // Pass channel only if submitted
+    onFixtureIdChange,
   };
 
-  console.log("Channel number in LightRenderer:", props.position);
-
-  const materialProps = {
-    color: isSelected ? 'red' : (light.color || 'white'),
-  };
-  const channelProps = 
-  {
-    channel: isChannelSubmitted ? light.channel : "0"
-
-   }
-
-  return (
-    <Spot {...materialProps} {...channelProps} {...props} shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
-  );
+  return <Spot {...props} />;
 });
 
 export default LightRenderer;
+

@@ -1,9 +1,15 @@
 import * as THREE from 'three';
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
 import { Cylinder } from '@react-three/drei';
 
-const Axis = ({  axis, rotation, onDrag, objectPosition }) => {
+const Axis = React.memo(({ axis, rotation, onDrag, onDragEnd, objectPosition }) => {
+  // Add validation for required props
+  if (!axis || !onDrag || !objectPosition) {
+    console.warn('Missing required props in Axis component');
+    return null;
+  }
+
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef(new THREE.Vector3());
   const { camera, raycaster } = useThree();
@@ -16,16 +22,18 @@ const Axis = ({  axis, rotation, onDrag, objectPosition }) => {
     switch (axis) {
       case 'x':
         movementDirectionRef.current.set(1, 0, 0);
-        planeNormal.set(0, 1, 0);
+        planeNormal.set(0, 0, 1);
         break;
       case 'y':
         movementDirectionRef.current.set(0, 1, 0);
-        planeNormal.set(1, 0, 0);
+        planeNormal.set(0, 0, 1);
         break;
       case 'z':
         movementDirectionRef.current.set(0, 0, 1);
-        planeNormal.set(0, 1, 0);
+        planeNormal.set(1, 0, 0);
         break;
+      default:
+        console.warn(`Unknown axis: ${axis}`);
     }
     planeRef.current.setFromNormalAndCoplanarPoint(
       planeNormal,
@@ -38,57 +46,66 @@ const Axis = ({  axis, rotation, onDrag, objectPosition }) => {
     setIsDragging(true);
     getMovementPlane();
 
-    // Calculate the intersection point
     const intersectionPoint = new THREE.Vector3();
     raycaster.setFromCamera(
       {
         x: (e.clientX / window.innerWidth) * 2 - 1,
-        y: -(e.clientY / window.innerHeight) * 2 + 1
+        y: -(e.clientY / window.innerHeight) * 2 + 1,
       },
       camera
     );
     raycaster.ray.intersectPlane(planeRef.current, intersectionPoint);
     dragStartRef.current.copy(intersectionPoint);
+    console.log('Initial Intersection Point:', intersectionPoint);
+    console.log('Plane Normal:', planeRef.current.normal);
 
     e.target.setPointerCapture(e.pointerId);
-
-  }, [camera, raycaster, getMovementPlane, , axis ]);
+  }, [camera, raycaster, getMovementPlane]);
 
   const handlePointerMove = useCallback((e) => {
     if (!isDragging) return;
 
     const intersectionPoint = new THREE.Vector3();
-    const cameraDirection = new THREE.Vector3();
-    camera.getWorldDirection(cameraDirection);
-
-    const planeNormal = cameraDirection.negate(); // Plane normal facing towards the camera
-    const translationPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, dragStartRef.current);
     raycaster.setFromCamera(
       {
         x: (e.clientX / window.innerWidth) * 2 - 1,
-        y: -(e.clientY / window.innerHeight) * 2 + 1
+        y: -(e.clientY / window.innerHeight) * 2 + 1,
       },
       camera
     );
-    raycaster.ray.intersectPlane(translationPlane, intersectionPoint);
 
-    const movementVector = intersectionPoint.sub(dragStartRef.current);
-    const projectedMovement = movementVector.projectOnVector(movementDirectionRef.current);
+    if (raycaster.ray.intersectPlane(planeRef.current, intersectionPoint)) {
+      const movementVector = intersectionPoint.clone().sub(dragStartRef.current);
+      const projectedMovement = new THREE.Vector3();
+      projectedMovement.copy(movementDirectionRef.current);
+      projectedMovement.multiplyScalar(movementVector.dot(movementDirectionRef.current));
 
-    // Apply a scaling factor to slow down the movement
-    const scalingFactor = 0.15; // Adjust this value to control the speed (smaller = slower)
-    projectedMovement.multiplyScalar(scalingFactor);
+      // Apply a scaling factor to control movement sensitivity
+      const scalingFactor = 0.05;
+      projectedMovement.multiplyScalar(scalingFactor);
 
-    onDrag(projectedMovement);
-    dragStartRef.current.add(projectedMovement);
-  }, [isDragging, camera, raycaster, onDrag]);
+
+      if (onDrag) {
+        onDrag({
+          x: projectedMovement.x,
+          y: projectedMovement.y,
+          z: projectedMovement.z,
+        });
+      }
+      dragStartRef.current.copy(intersectionPoint);
+    }
+  }, [isDragging, camera, raycaster, onDrag, axis]);
 
   const handlePointerUp = useCallback((e) => {
+    if (isDragging && onDragEnd) {
+      onDragEnd();
+    }
     setIsDragging(false);
-    (true);
     e.target.releasePointerCapture(e.pointerId);
+  }, [isDragging, onDragEnd]);
 
-  }, [ axis]);
+  useEffect(() => {
+  }, [objectPosition, axis]);
 
   return (
     <Cylinder
@@ -101,14 +118,14 @@ const Axis = ({  axis, rotation, onDrag, objectPosition }) => {
       onPointerOver={() => setHoveredAxis(axis)}
       onPointerOut={() => setHoveredAxis(null)}
     >
-      <meshBasicMaterial 
-        attach="material" 
-        color={hoveredAxis === axis ? "red" : "green"} 
+      <meshBasicMaterial
+        attach="material"
+        color={hoveredAxis === axis ? 'red' : 'green'}
         opacity={hoveredAxis === axis ? 0.8 : 1}
         transparent
       />
     </Cylinder>
   );
-};
+});
 
 export default Axis;

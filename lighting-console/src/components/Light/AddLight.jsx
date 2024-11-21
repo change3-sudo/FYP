@@ -1,19 +1,22 @@
-import React, { useState, useEffect } from 'react';
-
+import React, { useState, useEffect, useCallback } from 'react';
+import ColorPickerWithGels from './ColorPickerWithGels';
+import LeeGelColors from './LeeGelColors'
+import { DirectionalLight, DirectionalLightHelper, Mesh, PointLight, PointLightHelper, RectAreaLight, SpotLight, SpotLightHelper } from "three";
 const DEFAULT_INTENSITY = 0.5;
 const MAX_INTENSITY = 1;
 const DISPLAY_MULTIPLIER = 100; // Factor to convert between display and actual values
 const DEFAULT_COLOR = '#ffffff';
 const DEFAULT_POSITION = { x:2, y: 8, z: 0 };
 
-const AddLight = ({ 
+const AddLight = React.memo(({ 
   isVisible, 
   onLightAdd, 
-  selectedLight,
+  selectedLightStack,
   setSelectedLightStack, 
   onUpdateLight, 
   onCuesUpdate, 
   onRecordCue,
+
   cues = [] 
 }) => {
   const [intensity, setIntensity] = useState(DEFAULT_INTENSITY);
@@ -25,16 +28,17 @@ const AddLight = ({
   const [newLightId, setNewLightId] = useState(null);
 
   useEffect(() => {
-    if (selectedLight) {
-      setPosition(arrayToObject(selectedLight.position));
-      setIntensity(selectedLight.intensity ?? DEFAULT_INTENSITY);
-      setColor(selectedLight.color || DEFAULT_COLOR);
+    if (selectedLightStack && selectedLightStack.length > 0) {
+      const currentLight = selectedLightStack[selectedLightStack.length - 1];
+      setPosition(arrayToObject(currentLight.position));
+      setIntensity(currentLight.intensity ?? DEFAULT_INTENSITY);
+      setColor(currentLight.color || DEFAULT_COLOR);
     } else {
       setPosition(DEFAULT_POSITION);
       setIntensity(DEFAULT_INTENSITY);
       setColor(DEFAULT_COLOR);
     }
-  }, [selectedLight]);
+  }, [selectedLightStack]);
   const handleRecordButtonClick = () => {
     if (onRecordCue) {
       onRecordCue();
@@ -43,83 +47,111 @@ const AddLight = ({
   };
   const handlePositionChange = (axis, value) => {
     const newValue = parseFloat(value);
-    setPosition(prev => ({
-      ...prev,
-      [axis]: newValue
-    }));
-    if (selectedLight) {
-      onUpdateLight(selectedLight.id, {
-        type: 'position',
-        value: objectToArray({...position, [axis]: newValue})
-      });
-    }
+    setPosition(prev => {
+      const updatedPosition = {
+        ...prev,
+        [axis]: newValue,
+      };
+     
+  
+      if (selectedLightStack && selectedLightStack.length > 0) {
+        selectedLightStack.forEach(light => {
+          onUpdateLight(light.id, {
+            type: 'position',
+            value: objectToArray(updatedPosition), // Ensure objectToArray correctly transforms the position
+          });
+          // Update position in context or state as needed
+          setPosition(light.id, updatedPosition);
+        });
+      }
+  
+      console.log("updated",updatedPosition)
+      return updatedPosition;
+    });
   };
+  
 
-  const handleIntensityChange = (e) => {
+  const handleIntensityChange = useCallback((e) => {
     const newValue = parseFloat(e.target.value);
     setIntensity(newValue);
     const newDisplayIntensity = Math.round(newValue * DISPLAY_MULTIPLIER);
     setDisplayIntensity(newDisplayIntensity);
   
-    if (selectedLight.id) {
-      onUpdateLight(selectedLight.id, {
+    if (selectedLightStack && selectedLightStack.length > 0) {
+      const currentLight = selectedLightStack[selectedLightStack.length - 1];
+      onUpdateLight(currentLight.id, {
         type: 'intensity',
         value: newValue
       });
-      onUpdateLight(selectedLight.id, {
+      onUpdateLight(currentLight.id, {
         type: 'displayIntensity',
         value: newDisplayIntensity
       });
     }
-  };
+    console.log("displayIntensity", displayIntensity)
+  }, [selectedLightStack, onUpdateLight]);
 
-  const handleColorChange = (newValue) => {
-    setColor(newValue);
-    if (selectedLight) {
-      onUpdateLight(selectedLight.id, {
+  const handleColorChange = useCallback((newValue) => {
+    // Handle both direct colors and gel codes
+    const gelCode = newValue.replace(/^L?/, '');
+    const gelColor = LeeGelColors[gelCode];
+    const finalColor = gelColor || newValue;
+    
+    setColor(finalColor);
+    if (selectedLightStack && selectedLightStack.length > 0) {
+      const currentLight = selectedLightStack[selectedLightStack.length - 1];
+      onUpdateLight(currentLight.id, {
         type: 'color',
-        value: newValue
+        value: finalColor,
+        gelCode: gelColor ? gelCode : undefined
       });
     }
-  };
+  }, [selectedLightStack, onUpdateLight]);
   function generateShortId() {
     return Math.random().toString(36).substring(2, 6);
   }
   
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     const positionArray = objectToArray(position);
     const id = generateShortId();
     setNewLightId(id);
-  
+    const isHovered = false;
     // Initially add the light without a channel number if it's to be added later
     onLightAdd(id, intensity, color, {
       x: positionArray[0], 
       y: positionArray[1], 
       z: positionArray[2],
-    });
+   
+    },   isHovered);
   
     setChannelInputVisible(true); // Prompt for channel number input
     // Do not clear channelNumber here if you need it for submission
-  };
-  const handleChannelSubmit = () => {
+  }, [intensity, color, position, onLightAdd]);
+  const handleChannelSubmit = useCallback(() => {
     console.log("Attempting to assign channel:", channelNumber, "to light ID:", newLightId);
   
     if (newLightId && channelNumber) {
       onUpdateLight(newLightId, { type: 'channel', value: channelNumber });
       setChannelInputVisible(false);
       setChannelNumber(''); // Clear after successful submission
+
       console.log("Channel assigned successfully.");
     } else {
       console.log("Failed to assign channel. Missing light ID or channel number.");
     }
+  }, [channelNumber, newLightId, onUpdateLight]);
+
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleChannelSubmit();
+    }
   };
 
-
-  
-
   const handleRemove = () => {
-    if (selectedLight) {
-      onUpdateLight(selectedLight.id, { type: 'remove' });
+    if (selectedLightStack && selectedLightStack.length > 0) {
+      const currentLight = selectedLightStack[selectedLightStack.length - 1];
+      onUpdateLight(currentLight.id, { type: 'remove' });
       setSelectedLightStack(null);
     } else {
       console.log('No light selected to remove.');
@@ -176,11 +208,9 @@ const AddLight = ({
             className="w-full bg-gray-700 p-1"
           />
         </div>
-        <input 
-          type="color" 
-          value={color ?? DEFAULT_COLOR} 
-          onChange={e => handleColorChange(e.target.value)} 
-          className="w-32 mt-4" 
+            <ColorPickerWithGels
+          value={color}
+          onChange={handleColorChange}
         />
 
         <button 
@@ -197,6 +227,7 @@ const AddLight = ({
               type="text"
               value={channelNumber}
               onChange={(e) => setChannelNumber(e.target.value)}
+              onKeyDown={handleKeyDown}
               className="w-full bg-gray-700 p-1 mb-2"
             />
             <button 
@@ -215,26 +246,9 @@ const AddLight = ({
           Remove Selected Light
         </button>
 
-        <button 
-          onClick={handleRecordButtonClick}
-          className="w-full p-2 bg-blue-500 rounded hover:bg-blue-600 transition-colors"
-        >
-          Record Cue
-        </button>
-
-        <div className="mt-4">
-          <h3 className="text-xl mb-2">Cue List</h3>
-          <ul>
-            {cues.map(cue => (
-              <li key={cue.id} className="mb-1">
-                <strong>{cue.name}</strong>
-              </li>
-            ))}
-          </ul>
-        </div>
       </div>
     </div>
   );
-};
+});
 
 export default AddLight;

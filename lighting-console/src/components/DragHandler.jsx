@@ -1,8 +1,8 @@
-
-import React from 'react';
+import React, { useCallback } from 'react';
 import Axis from './Axis'; // Import the Axis component
 import { usePosition } from './PositionContext';
-function DragHandler({ selectedObject, objects, setEnableOrbit, updateObjects , dimensions }) {
+
+const DragHandler = React.memo(({ selectedObject, objects, setEnableOrbit, updateObjects, dimensions }) => {
   // Ensure that there is a selected object
   const { setPosition } = usePosition();
   if (selectedObject === null || !objects.find(obj => obj.id === selectedObject)) {
@@ -21,7 +21,7 @@ console.log(position);
   // Assuming dimensions are available and position is the center
 console.log(x,y,z);
   // This function handles the drag operation
-  const handleDrag = (moveVector) => {
+  const handleDrag = useCallback((moveVector) => {
     // Calculate new position based on moveVector
     if (!position) return;
     const newPosition = [
@@ -34,7 +34,11 @@ console.log(x,y,z);
     updateObjects(selectedObject, newPosition);
     setPosition(newPosition);
     console.log('Selected Object Position:', newPosition);  // Log the position of the selected object
-  };
+  }, [selectedObject, updateObjects]);
+
+  const handleDragEnd = useCallback(() => {
+    setEnableOrbit(true);
+  }, [setEnableOrbit]);
 
   return (
     <>
@@ -61,7 +65,7 @@ console.log(x,y,z);
       />
     </>
   );
-}
+});
 
 export default DragHandler;
 

@@ -1,26 +1,24 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 
 function CameraController() {
     const { camera } = useThree();
-    const saveObjectToDatabase = async (object) => {
-      const response = await fetch('/api/objects', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(object),
-      });
-      return response.json(); // Assuming the backend responds with the stored object
-    };
-    useFrame(() => {
-      // Example: Prevent the camera from moving below the y = 0 plane
-      if (camera.position.y < 1) {
-        camera.position.y = 1;
-      }
-    });
-  
-    return null; // This component does not render anything itself
-  }
+    const lastUpdate = useRef(0);
 
-export default CameraController;
+    useFrame(() => {
+        const now = performance.now();
+        if (now - lastUpdate.current < 32) return; // 约30fps就足够了
+        
+        if (camera.position.y < 1.1) {
+            requestAnimationFrame(() => {
+                camera.position.y = 1.1;
+            });
+        }
+        
+        lastUpdate.current = now;
+    });
+
+    return null; // 该组件不渲染任何内容
+}
+
+export default React.memo(CameraController);

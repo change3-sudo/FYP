@@ -49,6 +49,7 @@ function VolumetricSpotlight({
       spotPosition: { value: spotPosition },
       lightColor: { value: new THREE.Color(lightColor) },
       intensity: { value: intensity },
+      viewVector: { value: new THREE.Vector3() }, // Placeholder, updated in render loop
     },
     vertexShader: vertexShader,
     fragmentShader: fragmentShader,
@@ -59,5 +60,4 @@ function VolumetricSpotlight({
 
   return material;
 }
-
 export default VolumetricSpotlight;

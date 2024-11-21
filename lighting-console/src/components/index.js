@@ -9,17 +9,19 @@ import Library from './Library';
 import ObjectSelector from './Object/ObjectSelector';
 import CameraController from './CameraController'
 import DragHandler from './DragHandler';
-import LightDrag from './LightDrag'
+import LightDrag from './Light/LightDrag'
 import GeometryRenderer from './Object/GeometryRenderer'
 import ModelLoader from './ModelLoader';
 import GeometryManager from './Object/GeometryManager';
-import LightingConsolePanel from './Light/LightingControlPanel';
 import Model from './Model'
 import Spot from "./Light/Spot"
 import Scene from "./Scene"
 import CustomVolSpotlight from './Light/CustomVolSpotlight';
 import LightManager from './Light/LightManager';
+import LeeGelColors from './Light/LeeGelColors';
+import SpotLight from './Light/SpotLights';
 export {
+    SpotLight,
     AddObject,
     Stage,
     Cuelist,
@@ -38,5 +40,6 @@ export {
     Spot,
     Scene,
     LightDrag,
-    CustomVolSpotlight
+    CustomVolSpotlight,
+    LeeGelColors
 };

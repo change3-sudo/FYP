@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { BrowserRouter } from "react-router-dom";
 import {Stage, AddObject, Cuelist, Console, Navbar} from "./components"
 import './index.css'
+
 const App = () => {
 
 
